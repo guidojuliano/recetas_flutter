@@ -1,44 +1,75 @@
-import 'package:flutter/material.dart';
-import 'package:recetas_flutter/screens/recipe_detail.dart';
-import 'package:recetas_flutter/services/recipe_service.dart';
+import 'dart:async';
+import 'dart:convert';
 
-class HomeScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:recetas_flutter/widgets/recipe_image.dart';
+import 'package:provider/provider.dart';
+import 'package:recetas_flutter/config/env_config.dart';
+import 'package:recetas_flutter/models/recipes_model.dart';
+import 'package:recetas_flutter/providers/favorites_provider.dart';
+import 'package:recetas_flutter/providers/recipes_providers.dart';
+import 'package:recetas_flutter/screens/recipe_detail.dart';
+import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  static const String _fallbackSvg =
+      "<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='#673ab7'/><text x='50%' y='50%' text-anchor='middle' dominant-baseline='middle' font-family='Arial, sans-serif' font-size='48' font-weight='700' letter-spacing='2' fill='#ffffff'>NO IMAGE</text></svg>";
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<RecipesProvider>(context, listen: false).fetchRecipes();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: FutureBuilder<List<dynamic>>(
-        future: RecipeService().fetchRecipes(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: Consumer<RecipesProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          final recipes = snapshot.data ?? [];
-          return CustomScrollView(
-            slivers: <Widget>[
-              SliverPadding(
-                padding: const EdgeInsets.only(top: 10),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final recipe = recipes[index];
-                    return _RecipesCard(context, recipe);
-                  }, childCount: recipes.length),
+          } else if (provider.recipes.isEmpty) {
+            return const Center(child: Text('No recipes available'));
+          } else {
+            final recipes = provider.recipes;
+            return CustomScrollView(
+              slivers: <Widget>[
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: 10),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final recipe = recipes[index];
+                      return _RecipesCard(context, recipe);
+                    }, childCount: recipes.length),
+                  ),
                 ),
-              ),
-            ],
-          );
+              ],
+            );
+          }
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          final session = Supabase.instance.client.auth.currentSession;
+          if (session == null) {
+            showGuestLoginSheet(context);
+            return;
+          }
           _showBottom(context);
         },
         hoverColor: Colors.deepPurpleAccent,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF673AB7),
         child: Icon(Icons.add, color: Colors.white),
       ),
     );
@@ -65,14 +96,15 @@ class HomeScreen extends StatelessWidget {
   }
 
   // ignore: non_constant_identifier_names
-  Widget _RecipesCard(BuildContext context, dynamic recipe) {
+  Widget _RecipesCard(BuildContext context, Recipe recipe) {
+    final favoritesProvider = Provider.of<FavoritesProvider>(context);
+    final isFavorite = favoritesProvider.isFavorite(recipe.id);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => RecipeDetail(recipeName: 'Lassagna'),
-          ),
+          MaterialPageRoute(builder: (context) => RecipeDetail(recipe: recipe)),
         );
       },
       child: Padding(
@@ -81,49 +113,63 @@ class HomeScreen extends StatelessWidget {
           width: MediaQuery.of(context).size.width,
           height: 125,
           child: Card(
-            color: Colors.deepPurple.shade100,
+            color: const Color(0xFFF8F4FC),
             elevation: 8,
             shadowColor: Colors.black54,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.0),
+              side: const BorderSide(color: Color(0xFFE3D9F2), width: 1),
             ),
             child: Row(
               children: <Widget>[
                 SizedBox(
                   height: 125,
                   width: 100,
-
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: Image.network(
-                      recipe['image_link'],
-                      fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(12.0),
+                    child: RecipeImage(
+                      url: recipe.imageUrl,
+                      fallbackSvg: _fallbackSvg,
                     ),
                   ),
                 ),
-                SizedBox(width: 26),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      recipe['name'],
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        recipe.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Container(height: 1, width: 75, color: Colors.deepPurple),
-                    SizedBox(height: 4),
-                    Text(
-                      'by ${recipe['author']}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
+                      const SizedBox(height: 4),
+                      Container(height: 1, width: 75, color: Colors.deepPurple),
+                      const SizedBox(height: 4),
+                      Text(
+                        'by ${recipe.owner.displayName}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => favoritesProvider.toggleFavorite(recipe.id),
+                  icon: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: isFavorite ? Colors.redAccent : Colors.grey.shade600,
+                  ),
+                  tooltip: isFavorite
+                      ? 'Quitar de favoritos'
+                      : 'Agregar a favoritos',
                 ),
               ],
             ),
@@ -142,21 +188,250 @@ class RecipeForm extends StatefulWidget {
 }
 
 class _RecipeFormState extends State<RecipeForm> {
+  static final String _apiBaseUrl = EnvConfig.apiUrl;
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _recipeName = TextEditingController();
-  final TextEditingController _author = TextEditingController();
+  final TextEditingController _title = TextEditingController();
   final TextEditingController _imageUrl = TextEditingController();
-  final TextEditingController _ingredients = TextEditingController();
+  final TextEditingController _ingredientInput = TextEditingController();
   final TextEditingController _instructions = TextEditingController();
+  final FocusNode _ingredientFocus = FocusNode();
+  final FocusNode _instructionsFocus = FocusNode();
+  final List<String> _ingredients = [];
+  final List<CategoryItem> _categories = [];
+  final Set<int> _selectedCategoryIds = {};
+  bool _loadingCategories = false;
+  bool _submitting = false;
 
   @override
   void dispose() {
-    _recipeName.dispose();
-    _author.dispose();
+    _title.dispose();
     _imageUrl.dispose();
-    _ingredients.dispose();
+    _ingredientInput.dispose();
     _instructions.dispose();
+    _ingredientFocus.dispose();
+    _instructionsFocus.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() {
+      _loadingCategories = true;
+    });
+    try {
+      final response = await http.get(Uri.parse('$_apiBaseUrl/categories'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) {
+          _categories
+            ..clear()
+            ..addAll(
+              data.map(
+                (item) => CategoryItem(
+                  id: item['id'] as int,
+                  name: item['name'] as String? ?? '',
+                ),
+              ),
+            );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingCategories = false;
+        });
+      }
+    }
+  }
+
+  void _addIngredientsFromText(String text) {
+    final parts = text
+        .split(RegExp(r'[,\n]'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (parts.isEmpty) return;
+
+    for (final part in parts) {
+      if (part.length > 20) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ingrediente "$part" supera 20 caracteres'),
+          ),
+        );
+        continue;
+      }
+      if (!_ingredients.contains(part)) {
+        _ingredients.add(part);
+      }
+    }
+    _ingredientInput.clear();
+    setState(() {});
+    FocusScope.of(context).requestFocus(_ingredientFocus);
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Revisa los campos obligatorios')),
+      );
+      return;
+    }
+    if (_ingredients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega al menos un ingrediente')),
+      );
+      return;
+    }
+
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      showGuestLoginSheet(context);
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+    });
+
+    try {
+      final payload = {
+        'title': _title.text.trim(),
+        'ingredients': _ingredients,
+        'instructions': _instructions.text.trim(),
+        'image_url': _imageUrl.text.trim().isEmpty
+            ? null
+            : _imageUrl.text.trim(),
+        'category_ids': _selectedCategoryIds.toList(),
+      };
+
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl/recipes'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${session.accessToken}',
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode != 201) {
+        throw Exception('Error creando receta: ${response.body}');
+      }
+
+      if (mounted) {
+        await Provider.of<RecipesProvider>(context, listen: false)
+            .fetchRecipes();
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _selectCategory() async {
+    if (_loadingCategories) return;
+    if (_categories.isEmpty) {
+      await _loadCategories();
+    }
+
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final tempSelected = Set<int>.from(_selectedCategoryIds);
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Elegir categorías',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: _categories.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final isSelected =
+                            tempSelected.contains(category.id);
+                        return ListTile(
+                          title: Text(category.name),
+                          trailing: isSelected
+                              ? const Icon(Icons.check, color: Colors.deepPurple)
+                              : null,
+                          onTap: () {
+                            setSheetState(() {
+                              if (isSelected) {
+                                tempSelected.remove(category.id);
+                              } else {
+                                tempSelected.add(category.id);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _selectedCategoryIds
+                              ..clear()
+                              ..addAll(tempSelected);
+                          });
+                          Navigator.pop(context);
+                        },
+                        child: const Text(
+                          'Guardar',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -178,13 +453,29 @@ class _RecipeFormState extends State<RecipeForm> {
                 ),
               ),
               SizedBox(height: 20),
-              _buildTextField(label: 'Recipe Name', controller: _recipeName),
-              SizedBox(height: 20),
-              _buildTextField(label: 'Autor', controller: _author),
+              _buildTextField(label: 'Title', controller: _title),
               SizedBox(height: 20),
               _buildTextField(label: 'Image URL', controller: _imageUrl),
               SizedBox(height: 20),
-              _buildTextField(label: 'Ingredients', controller: _ingredients),
+              _buildIngredientsField(),
+              const SizedBox(height: 16),
+              _buildSelectedCategories(),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _selectCategory,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.deepPurple, width: 1.5),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                ),
+                child: Text(
+                  _loadingCategories ? 'Cargando...' : 'Elegir categorías',
+                  style: const TextStyle(color: Colors.deepPurple),
+                ),
+              ),
               SizedBox(height: 20),
               _buildTextField(label: 'Instructions', controller: _instructions),
               SizedBox(height: 10),
@@ -196,14 +487,9 @@ class _RecipeFormState extends State<RecipeForm> {
                       borderRadius: BorderRadius.circular(8.0),
                     ),
                   ),
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // Process data
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: _submitting ? null : _submit,
                   child: Text(
-                    'Create Recipe',
+                    _submitting ? 'Creando...' : 'Create Recipe',
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -221,6 +507,13 @@ class _RecipeFormState extends State<RecipeForm> {
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: label == 'Instructions' ? _instructionsFocus : null,
+      maxLines: label == 'Instructions' ? 6 : 1,
+      minLines: label == 'Instructions' ? 4 : 1,
+      textInputAction:
+          label == 'Instructions' ? TextInputAction.newline : TextInputAction.done,
+      keyboardType:
+          label == 'Instructions' ? TextInputType.multiline : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: Colors.deepPurple),
@@ -234,11 +527,98 @@ class _RecipeFormState extends State<RecipeForm> {
         ),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) {
+        if ((label == 'Image URL')) return null;
+        if (value == null || value.trim().isEmpty) {
           return 'Please enter $label';
         }
         return null;
       },
     );
   }
+
+  Widget _buildIngredientsField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ingredients',
+          style: TextStyle(
+            color: Colors.deepPurple,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _ingredients
+              .map(
+                (item) => Chip(
+                  label: Text(item),
+                  onDeleted: () {
+                    setState(() {
+                      _ingredients.remove(item);
+                    });
+                  },
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _ingredientInput,
+          focusNode: _ingredientFocus,
+          decoration: InputDecoration(
+            hintText: 'Escribe ingrediente y presiona Enter',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _addIngredientsFromText(_ingredientInput.text),
+            ),
+          ),
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: _addIngredientsFromText,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectedCategories() {
+    final selected = _categories
+        .where((c) => _selectedCategoryIds.contains(c.id))
+        .toList();
+
+    if (selected.isEmpty) {
+      return const Text(
+        'Sin categorías seleccionadas',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: selected
+          .map(
+            (c) => Chip(
+              label: Text(c.name),
+              onDeleted: () {
+                setState(() {
+                  _selectedCategoryIds.remove(c.id);
+                });
+              },
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class CategoryItem {
+  final int id;
+  final String name;
+
+  CategoryItem({required this.id, required this.name});
 }
