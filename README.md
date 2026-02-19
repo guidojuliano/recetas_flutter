@@ -51,6 +51,20 @@ flutter pub get
 flutter run
 ```
 
+## Capturas
+
+| Inicial                           | Home                             |
+| --------------------------------- | -------------------------------- |
+| ![Inicial](docs/images/LOGIN.png) | ![Home](docs/images/RECETAS.png) |
+
+| Search                              | Categories                                |
+| ----------------------------------- | ----------------------------------------- |
+| ![Search](docs/images/BUSQUEDA.png) | ![Categories](docs/images/CATEGORIAS.png) |
+
+| Favorites                               |
+| --------------------------------------- |
+| ![Favorites](docs/images/FAVORITOS.png) |
+
 ## Estructura principal
 
 - `lib/main.dart`: bootstrap, providers, tabs.

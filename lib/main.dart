@@ -42,6 +42,7 @@ class MainApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Cookly',
+        debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(

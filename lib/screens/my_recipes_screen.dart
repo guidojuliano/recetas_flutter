@@ -132,28 +132,34 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                   ),
                 ),
                 const SizedBox(width: 26),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      recipe.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        recipe.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(height: 1, width: 75, color: Colors.deepPurple),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.byAuthor(recipe.owner.displayName),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
+                      const SizedBox(height: 4),
+                      Container(height: 1, width: 75, color: Colors.deepPurple),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.byAuthor(recipe.owner.displayName),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
