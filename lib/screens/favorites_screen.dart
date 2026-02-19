@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/recipe_detail.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -21,7 +23,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final recipesProvider = Provider.of<RecipesProvider>(context, listen: false);
+      final recipesProvider = Provider.of<RecipesProvider>(
+        context,
+        listen: false,
+      );
       if (recipesProvider.recipes.isEmpty) {
         await recipesProvider.fetchRecipes();
       }
@@ -30,8 +35,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Consumer2<RecipesProvider, FavoritesProvider>(
       builder: (context, recipesProvider, favoritesProvider, child) {
+        final session = Supabase.instance.client.auth.currentSession;
         final allRecipes = recipesProvider.recipes;
         final favorites = allRecipes
             .where((recipe) => favoritesProvider.isFavorite(recipe.id))
@@ -41,22 +48,26 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (session == null) {
+          return Center(child: Text(l10n.favoritesRequireLogin));
+        }
+
         if (favorites.isEmpty) {
-          return const Center(
-            child: Text('Todavía no marcaste recetas como favoritas'),
-          );
+          return Center(child: Text(l10n.noFavoritesYet));
         }
 
         return ListView.builder(
           padding: const EdgeInsets.only(top: 10, bottom: 12),
           itemCount: favorites.length,
-          itemBuilder: (context, index) => _recipeCard(context, favorites[index]),
+          itemBuilder: (context, index) =>
+              _recipeCard(context, favorites[index]),
         );
       },
     );
   }
 
   Widget _recipeCard(BuildContext context, Recipe recipe) {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -109,7 +120,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       Container(height: 1, width: 75, color: Colors.deepPurple),
                       const SizedBox(height: 4),
                       Text(
-                        'by ${recipe.owner.displayName}',
+                        l10n.byAuthor(recipe.owner.displayName),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade700,
@@ -121,9 +132,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 Consumer<FavoritesProvider>(
                   builder: (context, favoritesProvider, child) {
                     return IconButton(
-                      onPressed: () => favoritesProvider.toggleFavorite(recipe.id),
+                      onPressed: () =>
+                          favoritesProvider.toggleFavorite(recipe.id),
                       icon: const Icon(Icons.favorite, color: Colors.redAccent),
-                      tooltip: 'Quitar de favoritos',
+                      tooltip: l10n.removeFromFavorites,
                     );
                   },
                 ),

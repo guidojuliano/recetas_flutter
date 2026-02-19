@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/main.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -72,6 +73,7 @@ class _InitialScreenState extends State<InitialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -126,8 +128,8 @@ class _InitialScreenState extends State<InitialScreen> {
                                   color: Color.fromARGB(255, 3, 44, 99),
                                 ),
                               )
-                            : const Text(
-                                'LOGIN',
+                            : Text(
+                                l10n.login,
                                 style: TextStyle(
                                   color: Color.fromARGB(255, 3, 44, 99),
                                   fontSize: 16,
@@ -140,8 +142,8 @@ class _InitialScreenState extends State<InitialScreen> {
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: _goToHome,
-                    child: const Text(
-                      'Entrar como invitado',
+                    child: Text(
+                      l10n.continueAsGuest,
                       style: TextStyle(color: Colors.white70, fontSize: 15),
                     ),
                   ),
@@ -155,6 +157,7 @@ class _InitialScreenState extends State<InitialScreen> {
   }
 
   Future<void> _loginWithGoogle() async {
+    final l10n = AppLocalizations.of(context);
     if (_isLoggingIn) return;
     setState(() {
       _isLoggingIn = true;
@@ -167,9 +170,9 @@ class _InitialScreenState extends State<InitialScreen> {
     } catch (e) {
       debugPrint('OAuth error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OAuth error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.oauthError('$e'))));
       }
     } finally {
       if (mounted) {

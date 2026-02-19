@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/recipe_detail.dart';
+import 'package:recetas_flutter/services/category_catalog_service.dart';
+import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -23,6 +27,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final FocusNode _searchFocus = FocusNode();
   Timer? _debounce;
   String _query = '';
+  Map<String, String> _categoryNames = const {};
 
   @override
   void initState() {
@@ -32,6 +37,14 @@ class _SearchScreenState extends State<SearchScreen> {
       if (provider.recipes.isEmpty) {
         await provider.fetchRecipes();
       }
+      final categories = await CategoryCatalogService.load();
+      if (!mounted) return;
+      setState(() {
+        _categoryNames = {
+          for (final category in categories)
+            if (category.id != null) category.id.toString(): category.name,
+        };
+      });
     });
   }
 
@@ -64,7 +77,7 @@ class _SearchScreenState extends State<SearchScreen> {
           .map(_normalize)
           .any((ingredient) => ingredient.contains(q));
       final inCategories = recipe.categories
-          .map(_normalize)
+          .map((id) => _normalize(_categoryNames[id] ?? id))
           .any((category) => category.contains(q));
       return inTitle || inOwner || inIngredients || inCategories;
     }).toList();
@@ -85,6 +98,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Consumer<RecipesProvider>(
       builder: (context, provider, child) {
         final allRecipes = provider.recipes;
@@ -99,7 +113,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 focusNode: _searchFocus,
                 onChanged: _onQueryChanged,
                 decoration: InputDecoration(
-                  hintText: 'Buscar por receta, autor, ingrediente o categoría',
+                  hintText: l10n.searchHint,
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
@@ -116,7 +130,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+                    borderSide: const BorderSide(
+                      color: Colors.deepPurple,
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
@@ -133,16 +150,13 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildResults(List<Recipe> recipes) {
+    final l10n = AppLocalizations.of(context);
     if (recipes.isEmpty && _query.isNotEmpty) {
-      return Center(
-        child: Text('No encontramos resultados para "$_query"'),
-      );
+      return Center(child: Text(l10n.noSearchResults(_query)));
     }
 
     if (recipes.isEmpty) {
-      return const Center(
-        child: Text('Escribe algo para buscar recetas'),
-      );
+      return Center(child: Text(l10n.typeToSearchRecipes));
     }
 
     return ListView.builder(
@@ -153,6 +167,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _recipeCard(BuildContext context, Recipe recipe) {
+    final l10n = AppLocalizations.of(context);
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final isFavorite = favoritesProvider.isFavorite(recipe.id);
 
@@ -208,7 +223,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       Container(height: 1, width: 75, color: Colors.deepPurple),
                       const SizedBox(height: 4),
                       Text(
-                        'by ${recipe.owner.displayName}',
+                        l10n.byAuthor(recipe.owner.displayName),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade700,
@@ -218,14 +233,22 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => favoritesProvider.toggleFavorite(recipe.id),
+                  onPressed: () {
+                    final session =
+                        Supabase.instance.client.auth.currentSession;
+                    if (session == null) {
+                      showGuestLoginSheet(context);
+                      return;
+                    }
+                    favoritesProvider.toggleFavorite(recipe.id);
+                  },
                   icon: Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: isFavorite ? Colors.redAccent : Colors.grey.shade600,
                   ),
                   tooltip: isFavorite
-                      ? 'Quitar de favoritos'
-                      : 'Agregar a favoritos',
+                      ? l10n.removeFromFavorites
+                      : l10n.addToFavorites,
                 ),
               ],
             ),

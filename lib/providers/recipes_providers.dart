@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,10 +11,23 @@ class RecipesProvider extends ChangeNotifier {
   List<Recipe> recipes = [];
   static final String _baseUrl = EnvConfig.apiUrl;
 
+  String get _languageCode {
+    final code = ui.PlatformDispatcher.instance.locale.languageCode
+        .toLowerCase();
+    if (code == 'en' || code == 'pt' || code == 'es') return code;
+    return 'es';
+  }
+
+  Uri _buildUri(String path, [Map<String, String>? query]) {
+    final base = Uri.parse('$_baseUrl$path');
+    final merged = <String, String>{'lang': _languageCode, ...?query};
+    return base.replace(queryParameters: merged);
+  }
+
   Future<List<Recipe>> fetchRecipes() async {
     isLoading = true;
     notifyListeners();
-    final url = Uri.parse('$_baseUrl/recipes');
+    final url = _buildUri('/recipes');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -46,7 +60,7 @@ class RecipesProvider extends ChangeNotifier {
   }
 
   Future<List<Recipe>> fetchRecipesByOwnerId(String ownerId) async {
-    final url = Uri.parse('$_baseUrl/recipes?owner_id=$ownerId');
+    final url = _buildUri('/recipes', {'owner_id': ownerId});
     final response = await http.get(url);
 
     if (response.statusCode != 200) {

@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
 import 'package:provider/provider.dart';
 import 'package:recetas_flutter/config/env_config.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/recipe_detail.dart';
+import 'package:recetas_flutter/utils/category_translation.dart';
 import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -34,13 +37,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: Consumer<RecipesProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (provider.recipes.isEmpty) {
-            return const Center(child: Text('No recipes available'));
+            return Center(child: Text(l10n.noRecipesAvailable));
           } else {
             final recipes = provider.recipes;
             return CustomScrollView(
@@ -68,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           _showBottom(context);
         },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         hoverColor: Colors.deepPurpleAccent,
         backgroundColor: const Color(0xFF673AB7),
         child: Icon(Icons.add, color: Colors.white),
@@ -97,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ignore: non_constant_identifier_names
   Widget _RecipesCard(BuildContext context, Recipe recipe) {
+    final l10n = AppLocalizations.of(context);
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final isFavorite = favoritesProvider.isFavorite(recipe.id);
 
@@ -152,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(height: 1, width: 75, color: Colors.deepPurple),
                       const SizedBox(height: 4),
                       Text(
-                        'by ${recipe.owner.displayName}',
+                        l10n.byAuthor(recipe.owner.displayName),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade700,
@@ -162,14 +168,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => favoritesProvider.toggleFavorite(recipe.id),
+                  onPressed: () {
+                    final session =
+                        Supabase.instance.client.auth.currentSession;
+                    if (session == null) {
+                      showGuestLoginSheet(context);
+                      return;
+                    }
+                    favoritesProvider.toggleFavorite(recipe.id);
+                  },
                   icon: Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: isFavorite ? Colors.redAccent : Colors.grey.shade600,
                   ),
                   tooltip: isFavorite
-                      ? 'Quitar de favoritos'
-                      : 'Agregar a favoritos',
+                      ? l10n.removeFromFavorites
+                      : l10n.addToFavorites,
                 ),
               ],
             ),
@@ -203,6 +217,13 @@ class _RecipeFormState extends State<RecipeForm> {
   bool _loadingCategories = false;
   bool _submitting = false;
 
+  String get _languageCode {
+    final code = ui.PlatformDispatcher.instance.locale.languageCode
+        .toLowerCase();
+    if (code == 'en' || code == 'pt' || code == 'es') return code;
+    return 'es';
+  }
+
   @override
   void dispose() {
     _title.dispose();
@@ -225,7 +246,9 @@ class _RecipeFormState extends State<RecipeForm> {
       _loadingCategories = true;
     });
     try {
-      final response = await http.get(Uri.parse('$_apiBaseUrl/categories'));
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/categories?lang=$_languageCode'),
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) {
@@ -234,8 +257,8 @@ class _RecipeFormState extends State<RecipeForm> {
             ..addAll(
               data.map(
                 (item) => CategoryItem(
-                  id: item['id'] as int,
-                  name: item['name'] as String? ?? '',
+                  id: (item as Map<String, dynamic>)['id'] as int,
+                  category: CategoryTranslation.fromJson(item),
                 ),
               ),
             );
@@ -251,6 +274,7 @@ class _RecipeFormState extends State<RecipeForm> {
   }
 
   void _addIngredientsFromText(String text) {
+    final l10n = AppLocalizations.of(context);
     final parts = text
         .split(RegExp(r'[,\n]'))
         .map((e) => e.trim())
@@ -261,11 +285,9 @@ class _RecipeFormState extends State<RecipeForm> {
 
     for (final part in parts) {
       if (part.length > 20) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ingrediente "$part" supera 20 caracteres'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.ingredientTooLong(part))));
         continue;
       }
       if (!_ingredients.contains(part)) {
@@ -278,17 +300,18 @@ class _RecipeFormState extends State<RecipeForm> {
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     if (_submitting) return;
     if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Revisa los campos obligatorios')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.checkRequiredFields)));
       return;
     }
     if (_ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agrega al menos un ingrediente')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.addAtLeastOneIngredient)));
       return;
     }
 
@@ -303,6 +326,10 @@ class _RecipeFormState extends State<RecipeForm> {
     });
 
     try {
+      final recipesProvider = Provider.of<RecipesProvider>(
+        context,
+        listen: false,
+      );
       final payload = {
         'title': _title.text.trim(),
         'ingredients': _ingredients,
@@ -326,16 +353,14 @@ class _RecipeFormState extends State<RecipeForm> {
         throw Exception('Error creando receta: ${response.body}');
       }
 
-      if (mounted) {
-        await Provider.of<RecipesProvider>(context, listen: false)
-            .fetchRecipes();
-        Navigator.pop(context);
-      }
+      await recipesProvider.fetchRecipes();
+      if (!mounted) return;
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.genericError('$e'))));
       }
     } finally {
       if (mounted) {
@@ -347,6 +372,7 @@ class _RecipeFormState extends State<RecipeForm> {
   }
 
   Future<void> _selectCategory() async {
+    final l10n = AppLocalizations.of(context);
     if (_loadingCategories) return;
     if (_categories.isEmpty) {
       await _loadCategories();
@@ -367,30 +393,36 @@ class _RecipeFormState extends State<RecipeForm> {
               child: Column(
                 children: [
                   const SizedBox(height: 12),
-                  const Text(
-                    'Elegir categorías',
+                  Text(
+                    l10n.selectCategories,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Expanded(
                     child: ListView.separated(
                       itemCount: _categories.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (context, index) {
-                        final category = _categories[index];
-                        final isSelected =
-                            tempSelected.contains(category.id);
+                        final categoryItem = _categories[index];
+                        final isSelected = tempSelected.contains(
+                          categoryItem.id,
+                        );
                         return ListTile(
-                          title: Text(category.name),
+                          title: Text(
+                            categoryItem.category.localizedName(context),
+                          ),
                           trailing: isSelected
-                              ? const Icon(Icons.check, color: Colors.deepPurple)
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.deepPurple,
+                                )
                               : null,
                           onTap: () {
                             setSheetState(() {
                               if (isSelected) {
-                                tempSelected.remove(category.id);
+                                tempSelected.remove(categoryItem.id);
                               } else {
-                                tempSelected.add(category.id);
+                                tempSelected.add(categoryItem.id);
                               }
                             });
                           },
@@ -418,8 +450,8 @@ class _RecipeFormState extends State<RecipeForm> {
                           });
                           Navigator.pop(context);
                         },
-                        child: const Text(
-                          'Guardar',
+                        child: Text(
+                          l10n.save,
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
@@ -436,6 +468,7 @@ class _RecipeFormState extends State<RecipeForm> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(10.0),
@@ -445,7 +478,7 @@ class _RecipeFormState extends State<RecipeForm> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Add New Recipe',
+                l10n.addNewRecipe,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -453,9 +486,13 @@ class _RecipeFormState extends State<RecipeForm> {
                 ),
               ),
               SizedBox(height: 20),
-              _buildTextField(label: 'Title', controller: _title),
+              _buildTextField(label: l10n.title, controller: _title),
               SizedBox(height: 20),
-              _buildTextField(label: 'Image URL', controller: _imageUrl),
+              _buildTextField(
+                label: l10n.imageUrl,
+                controller: _imageUrl,
+                optional: true,
+              ),
               SizedBox(height: 20),
               _buildIngredientsField(),
               const SizedBox(height: 16),
@@ -465,19 +502,25 @@ class _RecipeFormState extends State<RecipeForm> {
                 onPressed: _selectCategory,
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.deepPurple, width: 1.5),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 18,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8.0),
                   ),
                 ),
                 child: Text(
-                  _loadingCategories ? 'Cargando...' : 'Elegir categorías',
+                  _loadingCategories ? l10n.loading : l10n.selectCategories,
                   style: const TextStyle(color: Colors.deepPurple),
                 ),
               ),
               SizedBox(height: 20),
-              _buildTextField(label: 'Instructions', controller: _instructions),
+              _buildTextField(
+                label: l10n.instructions,
+                controller: _instructions,
+                isInstructions: true,
+              ),
               SizedBox(height: 10),
               Center(
                 child: ElevatedButton(
@@ -489,7 +532,7 @@ class _RecipeFormState extends State<RecipeForm> {
                   ),
                   onPressed: _submitting ? null : _submit,
                   child: Text(
-                    _submitting ? 'Creando...' : 'Create Recipe',
+                    _submitting ? l10n.creating : l10n.createRecipe,
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -504,16 +547,21 @@ class _RecipeFormState extends State<RecipeForm> {
   Widget _buildTextField({
     required String label,
     required TextEditingController controller,
+    bool isInstructions = false,
+    bool optional = false,
   }) {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: controller,
-      focusNode: label == 'Instructions' ? _instructionsFocus : null,
-      maxLines: label == 'Instructions' ? 6 : 1,
-      minLines: label == 'Instructions' ? 4 : 1,
-      textInputAction:
-          label == 'Instructions' ? TextInputAction.newline : TextInputAction.done,
-      keyboardType:
-          label == 'Instructions' ? TextInputType.multiline : TextInputType.text,
+      focusNode: isInstructions ? _instructionsFocus : null,
+      maxLines: isInstructions ? 6 : 1,
+      minLines: isInstructions ? 4 : 1,
+      textInputAction: isInstructions
+          ? TextInputAction.newline
+          : TextInputAction.done,
+      keyboardType: isInstructions
+          ? TextInputType.multiline
+          : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: Colors.deepPurple),
@@ -527,9 +575,9 @@ class _RecipeFormState extends State<RecipeForm> {
         ),
       ),
       validator: (value) {
-        if ((label == 'Image URL')) return null;
+        if (optional) return null;
         if (value == null || value.trim().isEmpty) {
-          return 'Please enter $label';
+          return l10n.pleaseEnterField(label);
         }
         return null;
       },
@@ -537,11 +585,12 @@ class _RecipeFormState extends State<RecipeForm> {
   }
 
   Widget _buildIngredientsField() {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Ingredients',
+          l10n.ingredients,
           style: TextStyle(
             color: Colors.deepPurple,
             fontWeight: FontWeight.w600,
@@ -569,7 +618,7 @@ class _RecipeFormState extends State<RecipeForm> {
           controller: _ingredientInput,
           focusNode: _ingredientFocus,
           decoration: InputDecoration(
-            hintText: 'Escribe ingrediente y presiona Enter',
+            hintText: l10n.ingredientHint,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8.0),
             ),
@@ -586,13 +635,14 @@ class _RecipeFormState extends State<RecipeForm> {
   }
 
   Widget _buildSelectedCategories() {
+    final l10n = AppLocalizations.of(context);
     final selected = _categories
         .where((c) => _selectedCategoryIds.contains(c.id))
         .toList();
 
     if (selected.isEmpty) {
-      return const Text(
-        'Sin categorías seleccionadas',
+      return Text(
+        l10n.noCategoriesSelected,
         style: TextStyle(color: Colors.grey),
       );
     }
@@ -603,7 +653,7 @@ class _RecipeFormState extends State<RecipeForm> {
       children: selected
           .map(
             (c) => Chip(
-              label: Text(c.name),
+              label: Text(c.category.localizedName(context)),
               onDeleted: () {
                 setState(() {
                   _selectedCategoryIds.remove(c.id);
@@ -618,7 +668,7 @@ class _RecipeFormState extends State<RecipeForm> {
 
 class CategoryItem {
   final int id;
-  final String name;
+  final CategoryTranslation category;
 
-  CategoryItem({required this.id, required this.name});
+  CategoryItem({required this.id, required this.category});
 }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
+import 'package:recetas_flutter/services/category_catalog_service.dart';
+import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -16,6 +19,7 @@ class RecipeDetail extends StatefulWidget {
 
 class _RecipeDetailState extends State<RecipeDetail> {
   late Recipe _recipe;
+  Map<String, String> _categoryNames = const {};
 
   static const String _fallbackSvg =
       "<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='#673ab7'/><text x='50%' y='50%' text-anchor='middle' dominant-baseline='middle' font-family='Arial, sans-serif' font-size='48' font-weight='700' letter-spacing='2' fill='#ffffff'>NO IMAGE</text></svg>";
@@ -24,6 +28,18 @@ class _RecipeDetailState extends State<RecipeDetail> {
   void initState() {
     super.initState();
     _recipe = widget.recipe;
+    _loadCategoryCatalog();
+  }
+
+  Future<void> _loadCategoryCatalog() async {
+    final categories = await CategoryCatalogService.load();
+    if (!mounted) return;
+    setState(() {
+      _categoryNames = {
+        for (final category in categories)
+          if (category.id != null) category.id.toString(): category.name,
+      };
+    });
   }
 
   bool get _canManageRecipe {
@@ -33,6 +49,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _confirmDelete() async {
+    final l10n = AppLocalizations.of(context);
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) return;
 
@@ -49,8 +66,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Eliminar receta',
+              Text(
+                l10n.deleteRecipeTitle,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -58,8 +75,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                '¿Seguro que quieres eliminar esta receta? Esta acción no se puede deshacer.',
+              Text(
+                l10n.deleteRecipeConfirm,
                 style: TextStyle(color: Colors.white70, fontSize: 15),
               ),
               const SizedBox(height: 20),
@@ -72,8 +89,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ),
                 ),
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text(
-                  'Cancelar',
+                child: Text(
+                  l10n.cancel,
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
@@ -87,8 +104,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ),
                 ),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Eliminar',
+                child: Text(
+                  l10n.delete,
                   style: TextStyle(color: Colors.redAccent, fontSize: 16),
                 ),
               ),
@@ -109,14 +126,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Receta eliminada')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(l10n.recipeDeleted)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo eliminar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.couldNotDelete('$e'))));
     }
   }
 
@@ -153,6 +168,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final ingredients = _recipe.ingredients;
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final isFavorite = favoritesProvider.isFavorite(_recipe.id);
@@ -174,28 +190,33 @@ class _RecipeDetailState extends State<RecipeDetail> {
             ),
             actions: [
               IconButton(
-                onPressed: () => favoritesProvider.toggleFavorite(_recipe.id),
-                icon: Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                ),
+                onPressed: () {
+                  final session = Supabase.instance.client.auth.currentSession;
+                  if (session == null) {
+                    showGuestLoginSheet(context);
+                    return;
+                  }
+                  favoritesProvider.toggleFavorite(_recipe.id);
+                },
+                icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
                 color: isFavorite ? Colors.redAccent : Colors.white,
                 tooltip: isFavorite
-                    ? 'Quitar de favoritos'
-                    : 'Agregar a favoritos',
+                    ? l10n.removeFromFavorites
+                    : l10n.addToFavorites,
               ),
               if (canManage)
                 IconButton(
                   onPressed: _openEditSheet,
                   icon: const Icon(Icons.edit),
                   color: Colors.white,
-                  tooltip: 'Editar',
+                  tooltip: l10n.edit,
                 ),
               if (canManage)
                 IconButton(
                   onPressed: _confirmDelete,
                   icon: const Icon(Icons.delete),
                   color: Colors.white,
-                  tooltip: 'Eliminar',
+                  tooltip: l10n.delete,
                 ),
             ],
           ),
@@ -208,12 +229,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 _buildMeta(),
                 const SizedBox(height: 24),
                 _buildSection(
-                  title: 'Ingredientes',
+                  title: l10n.ingredients,
                   body: ingredients.map((e) => '• $e').join('\n'),
                 ),
                 const SizedBox(height: 24),
                 _buildSection(
-                  title: 'Instrucciones',
+                  title: l10n.instructions,
                   body: _recipe.instructions,
                 ),
                 const SizedBox(height: 24),
@@ -240,7 +261,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Widget _buildMeta() {
-    final categories = _recipe.categories;
+    final l10n = AppLocalizations.of(context);
+    final categories = _recipe.categories
+        .map((id) => _categoryNames[id] ?? id)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +275,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
         ),
         const SizedBox(height: 6),
         Text(
-          'By ${_recipe.owner.displayName}',
+          l10n.byAuthor(_recipe.owner.displayName),
           style: TextStyle(fontSize: 16, color: Colors.grey[700]),
         ),
         const SizedBox(height: 6),
@@ -352,12 +376,13 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
     if (_ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agrega al menos un ingrediente')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.addAtLeastOneIngredient)));
       return;
     }
 
@@ -368,7 +393,9 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
     try {
       final payload = <String, dynamic>{
         'title': _title.text.trim(),
-        'image_url': _imageUrl.text.trim().isEmpty ? null : _imageUrl.text.trim(),
+        'image_url': _imageUrl.text.trim().isEmpty
+            ? null
+            : _imageUrl.text.trim(),
         'ingredients': _ingredients,
         'instructions': _instructions.text.trim(),
       };
@@ -384,9 +411,9 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
       Navigator.pop(context, updated);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo actualizar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.couldNotUpdate('$e'))));
     } finally {
       if (mounted) {
         setState(() {
@@ -398,6 +425,7 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -407,8 +435,8 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Editar receta',
+              Text(
+                l10n.editRecipe,
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -418,13 +446,13 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _title,
-                decoration: const InputDecoration(
-                  labelText: 'Título',
+                decoration: InputDecoration(
+                  labelText: l10n.title,
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'El título es obligatorio';
+                    return l10n.titleRequired;
                   }
                   return null;
                 },
@@ -432,14 +460,14 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _imageUrl,
-                decoration: const InputDecoration(
-                  labelText: 'URL de imagen',
+                decoration: InputDecoration(
+                  labelText: l10n.imageUrl,
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Ingredientes',
+              Text(
+                l10n.ingredients,
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
@@ -463,10 +491,11 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
               TextField(
                 controller: _ingredientsInput,
                 decoration: InputDecoration(
-                  hintText: 'Agrega ingrediente y presiona Enter',
+                  hintText: l10n.addIngredientAndPressEnter,
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    onPressed: () => _addIngredientsFromText(_ingredientsInput.text),
+                    onPressed: () =>
+                        _addIngredientsFromText(_ingredientsInput.text),
                     icon: const Icon(Icons.add),
                   ),
                 ),
@@ -477,13 +506,13 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
                 controller: _instructions,
                 minLines: 4,
                 maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Instrucciones',
+                decoration: InputDecoration(
+                  labelText: l10n.instructions,
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Las instrucciones son obligatorias';
+                    return l10n.instructionsRequired;
                   }
                   return null;
                 },
@@ -497,7 +526,7 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
                     backgroundColor: Colors.deepPurple,
                   ),
                   child: Text(
-                    _saving ? 'Guardando...' : 'Guardar cambios',
+                    _saving ? l10n.saving : l10n.saveChanges,
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),

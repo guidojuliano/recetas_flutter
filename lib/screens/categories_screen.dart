@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:recetas_flutter/config/env_config.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/screens/category_recipes_screen.dart';
+import 'package:recetas_flutter/utils/category_translation.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -23,7 +26,14 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     Color(0xFF5D4D63),
   ];
 
-  late Future<List<String>> _futureCategories;
+  late Future<List<CategoryTranslation>> _futureCategories;
+
+  String get _languageCode {
+    final code = ui.PlatformDispatcher.instance.locale.languageCode
+        .toLowerCase();
+    if (code == 'en' || code == 'pt' || code == 'es') return code;
+    return 'es';
+  }
 
   @override
   void initState() {
@@ -31,26 +41,30 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     _futureCategories = _fetchCategories();
   }
 
-  Future<List<String>> _fetchCategories() async {
+  Future<List<CategoryTranslation>> _fetchCategories() async {
     final response = await http.get(
-      Uri.parse('${EnvConfig.apiUrl}/categories'),
+      Uri.parse('${EnvConfig.apiUrl}/categories?lang=$_languageCode'),
     );
     if (response.statusCode != 200) {
-      throw Exception('No se pudieron cargar categorías');
+      throw Exception('categories_load_failed');
     }
 
     final dynamic data = jsonDecode(response.body);
     if (data is! List) return [];
 
     return data
-        .map((item) => (item as Map<String, dynamic>)['name'] as String? ?? '')
-        .where((name) => name.trim().isNotEmpty)
+        .map((item) {
+          final row = item as Map<String, dynamic>;
+          return CategoryTranslation.fromJson(row);
+        })
+        .where((item) => item.name.isNotEmpty)
         .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<String>>(
+    final l10n = AppLocalizations.of(context);
+    return FutureBuilder<List<CategoryTranslation>>(
       future: _futureCategories,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -58,32 +72,37 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         }
 
         if (snapshot.hasError) {
+          final rawError = '${snapshot.error}';
+          final message = rawError.contains('categories_load_failed')
+              ? l10n.couldNotLoadCategories
+              : l10n.categoryLoadError(rawError);
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                'Error cargando categorías:\n${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
+              child: Text(message, textAlign: TextAlign.center),
             ),
           );
         }
 
         final categories = snapshot.data ?? [];
         if (categories.isEmpty) {
-          return const Center(child: Text('No hay categorías disponibles'));
+          return Center(child: Text(l10n.noCategoriesAvailable));
         }
 
         return ListView.builder(
           padding: EdgeInsets.zero,
           itemCount: categories.length,
           itemBuilder: (context, index) {
-            final name = categories[index];
-            final theme = _themeForCategory(name, index);
+            final category = categories[index];
+            if (category.id == null) {
+              return const SizedBox.shrink();
+            }
+            final displayName = category.localizedName(context);
+            final theme = _themeForCategory(category.name, index);
             final imageOnLeft = index.isEven;
 
             return _CategoryStripe(
-              title: name,
+              title: displayName,
               backgroundColor: theme.backgroundColor,
               imageUrl: theme.imageUrl,
               imageOnLeft: imageOnLeft,
@@ -91,7 +110,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => CategoryRecipesScreen(categoryName: name),
+                    builder: (_) => CategoryRecipesScreen(
+                      categoryName: category.id.toString(),
+                      categoryDisplayName: displayName,
+                    ),
                   ),
                 );
               },
@@ -105,21 +127,30 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   _CategoryTheme _themeForCategory(String rawName, int index) {
     final name = rawName.trim().toLowerCase();
 
-    if (name.contains('postre') || name.contains('dulce')) {
+    if (name.contains('postre') ||
+        name.contains('dulce') ||
+        name.contains('dessert') ||
+        name.contains('sweet') ||
+        name.contains('sobremesa')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFFE3AD3D),
         imageUrl:
             'https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('entrada')) {
+    if (name.contains('entrada') ||
+        name.contains('starter') ||
+        name.contains('appetizer') ||
+        name.contains('aperitivo')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFF7F8E56),
         imageUrl:
             'https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('caliente')) {
+    if (name.contains('caliente') ||
+        name.contains('hot') ||
+        name.contains('quente')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFFE3AD3D),
         imageUrl:
@@ -128,7 +159,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     }
     if (name.contains('frio') ||
         name.contains('fría') ||
-        name.contains('fria')) {
+        name.contains('fria') ||
+        name.contains('cold') ||
+        name.contains('gelado')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFF5D4D63),
         imageUrl:
@@ -142,7 +175,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('vegana') || name.contains('vegetariana')) {
+    if (name.contains('vegana') ||
+        name.contains('vegano') ||
+        name.contains('vegetariana') ||
+        name.contains('vegetarian') ||
+        name.contains('vegan')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFF3DE396),
         imageUrl:
@@ -156,28 +193,36 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('desayuno')) {
+    if (name.contains('desayuno') ||
+        name.contains('breakfast') ||
+        name.contains('cafe da manha')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFFE3AD3D),
         imageUrl:
             'https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('merienda')) {
+    if (name.contains('merienda') ||
+        name.contains('snack') ||
+        name.contains('lanche')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFF3DE396),
         imageUrl:
             'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('bebidas')) {
+    if (name.contains('bebidas') ||
+        name.contains('drinks') ||
+        name.contains('beverages')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFF7D568E),
         imageUrl:
             'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=80',
       );
     }
-    if (name.contains('ensalada')) {
+    if (name.contains('ensalada') ||
+        name.contains('salad') ||
+        name.contains('salada')) {
       return const _CategoryTheme(
         backgroundColor: Color(0xFF4D6359),
         imageUrl:
@@ -211,7 +256,6 @@ class _CategoryStripe extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const double stripeHeight = 118;
-    const double imageSize = 96;
     return Material(
       color: backgroundColor,
       child: InkWell(

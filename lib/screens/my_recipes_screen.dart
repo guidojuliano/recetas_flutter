@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/recipe_detail.dart';
@@ -41,9 +42,10 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mis recetas'),
+        title: Text(l10n.myRecipes),
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
@@ -60,7 +62,7 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  'Error cargando tus recetas:\n${snapshot.error}',
+                  l10n.myRecipesLoadError('${snapshot.error}'),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -69,9 +71,7 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
 
           final recipes = snapshot.data ?? [];
           if (recipes.isEmpty) {
-            return const Center(
-              child: Text('No tienes recetas creadas todavía'),
-            );
+            return Center(child: Text(l10n.noCreatedRecipesYet));
           }
 
           return RefreshIndicator(
@@ -97,6 +97,7 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
   }
 
   Widget _recipeCard(BuildContext context, Recipe recipe) {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -146,7 +147,7 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                     Container(height: 1, width: 75, color: Colors.deepPurple),
                     const SizedBox(height: 4),
                     Text(
-                      'by ${recipe.owner.displayName}',
+                      l10n.byAuthor(recipe.owner.displayName),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade700,

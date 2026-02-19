@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/recipe_detail.dart';
+import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CategoryRecipesScreen extends StatefulWidget {
   final String categoryName;
+  final String? categoryDisplayName;
 
-  const CategoryRecipesScreen({super.key, required this.categoryName});
+  const CategoryRecipesScreen({
+    super.key,
+    required this.categoryName,
+    this.categoryDisplayName,
+  });
 
   @override
   State<CategoryRecipesScreen> createState() => _CategoryRecipesScreenState();
@@ -32,32 +40,10 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
       context,
       listen: false,
     ).fetchRecipes();
-    final target = _normalize(widget.categoryName);
+    final target = widget.categoryName.trim();
     return allRecipes.where((recipe) {
-      for (final category in recipe.categories) {
-        final current = _normalize(category);
-        if (current == target ||
-            current.contains(target) ||
-            target.contains(current)) {
-          return true;
-        }
-      }
-      return false;
+      return recipe.categories.contains(target);
     }).toList();
-  }
-
-  String _normalize(String input) {
-    return input
-        .toLowerCase()
-        .trim()
-        .replaceAll('á', 'a')
-        .replaceAll('é', 'e')
-        .replaceAll('í', 'i')
-        .replaceAll('ó', 'o')
-        .replaceAll('ú', 'u')
-        .replaceAll('ü', 'u')
-        .replaceAll('ñ', 'n')
-        .replaceAll(RegExp(r'[_\-\s]+'), '');
   }
 
   Future<void> _reload() async {
@@ -69,9 +55,10 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.categoryName),
+        title: Text(widget.categoryDisplayName ?? widget.categoryName),
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
@@ -88,7 +75,7 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  'Error cargando recetas:\n${snapshot.error}',
+                  l10n.recipesLoadError('${snapshot.error}'),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -98,7 +85,11 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
           final recipes = snapshot.data ?? [];
           if (recipes.isEmpty) {
             return Center(
-              child: Text('No hay recetas para ${widget.categoryName}'),
+              child: Text(
+                l10n.noRecipesForCategory(
+                  widget.categoryDisplayName ?? widget.categoryName,
+                ),
+              ),
             );
           }
 
@@ -125,6 +116,7 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
   }
 
   Widget _recipeCard(BuildContext context, Recipe recipe) {
+    final l10n = AppLocalizations.of(context);
     final favoritesProvider = Provider.of<FavoritesProvider>(context);
     final isFavorite = favoritesProvider.isFavorite(recipe.id);
 
@@ -180,7 +172,7 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
                       Container(height: 1, width: 75, color: Colors.deepPurple),
                       const SizedBox(height: 4),
                       Text(
-                        'by ${recipe.owner.displayName}',
+                        l10n.byAuthor(recipe.owner.displayName),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade700,
@@ -190,14 +182,22 @@ class _CategoryRecipesScreenState extends State<CategoryRecipesScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => favoritesProvider.toggleFavorite(recipe.id),
+                  onPressed: () {
+                    final session =
+                        Supabase.instance.client.auth.currentSession;
+                    if (session == null) {
+                      showGuestLoginSheet(context);
+                      return;
+                    }
+                    favoritesProvider.toggleFavorite(recipe.id);
+                  },
                   icon: Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: isFavorite ? Colors.redAccent : Colors.grey.shade600,
                   ),
                   tooltip: isFavorite
-                      ? 'Quitar de favoritos'
-                      : 'Agregar a favoritos',
+                      ? l10n.removeFromFavorites
+                      : l10n.addToFavorites,
                 ),
               ],
             ),

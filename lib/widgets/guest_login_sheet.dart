@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const String _googleLogoSvg =
@@ -24,14 +25,15 @@ void showGuestLoginSheet(BuildContext context) {
       bool isLoggingIn = false;
       return StatefulBuilder(
         builder: (context, setState) {
+          final l10n = AppLocalizations.of(context);
           return Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Necesitas iniciar sesión',
+                Text(
+                  l10n.needLoginTitle,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -39,8 +41,8 @@ void showGuestLoginSheet(BuildContext context) {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Para acceder a esta función, inicia sesión con Google.',
+                Text(
+                  l10n.needLoginSubtitle,
                   style: TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 16),
@@ -61,7 +63,8 @@ void showGuestLoginSheet(BuildContext context) {
                           try {
                             await Supabase.instance.client.auth.signInWithOAuth(
                               OAuthProvider.google,
-                              redirectTo: 'io.supabase.flutter://login-callback',
+                              redirectTo:
+                                  'io.supabase.flutter://login-callback',
                             );
                           } finally {
                             setState(() {
@@ -83,8 +86,8 @@ void showGuestLoginSheet(BuildContext context) {
                                 color: Colors.black87,
                               ),
                             )
-                          : const Text(
-                              'LOGIN WITH GOOGLE',
+                          : Text(
+                              l10n.loginWithGoogle,
                               style: TextStyle(color: Colors.black87),
                             ),
                     ],
@@ -93,8 +96,8 @@ void showGuestLoginSheet(BuildContext context) {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Seguir como invitado',
+                  child: Text(
+                    l10n.continueAsGuest,
                     style: TextStyle(color: Colors.white70),
                   ),
                 ),

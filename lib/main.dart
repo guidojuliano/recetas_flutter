@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:recetas_flutter/config/env_config.dart';
+import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/categories_screen.dart';
@@ -41,6 +42,8 @@ class MainApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Cookly',
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(
           textTheme: GoogleFonts.poppinsTextTheme(),
           primaryTextTheme: GoogleFonts.poppinsTextTheme(),
@@ -67,6 +70,7 @@ class RecipeBook extends StatelessWidget {
   const RecipeBook({super.key});
 
   void _showProfileSheet(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final session = Supabase.instance.client.auth.currentSession;
     final user = Supabase.instance.client.auth.currentUser;
     if (session == null) {
@@ -87,8 +91,8 @@ class RecipeBook extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Perfil',
+              Text(
+                l10n.profile,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -113,8 +117,8 @@ class RecipeBook extends StatelessWidget {
                     ),
                   );
                 },
-                child: const Text(
-                  'Mis recetas',
+                child: Text(
+                  l10n.myRecipes,
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
@@ -137,8 +141,8 @@ class RecipeBook extends StatelessWidget {
                     );
                   }
                 },
-                child: const Text(
-                  'Cerrar sesión',
+                child: Text(
+                  l10n.logout,
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
@@ -188,6 +192,7 @@ class RecipeBook extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return DefaultTabController(
       length: 4,
       child: Scaffold(
@@ -216,10 +221,10 @@ class RecipeBook extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
             tabs: [
-              Tab(icon: Icon(Icons.home), text: 'Home'),
-              Tab(icon: Icon(Icons.search), text: 'Search'),
-              Tab(icon: Icon(Icons.food_bank), text: 'Categories'),
-              Tab(icon: Icon(Icons.favorite), text: 'Favorites'),
+              Tab(icon: Icon(Icons.home), text: l10n.tabHome),
+              Tab(icon: Icon(Icons.search), text: l10n.tabSearch),
+              Tab(icon: Icon(Icons.food_bank), text: l10n.tabCategories),
+              Tab(icon: Icon(Icons.favorite), text: l10n.tabFavorites),
             ],
           ),
         ),

@@ -31,22 +31,22 @@ class Profile with _$Profile {
     @JsonKey(name: 'avatar_url') String? avatarUrl,
   }) = _Profile;
 
-  factory Profile.fromJson(Map<String, dynamic> json) => _$ProfileFromJson(json);
+  factory Profile.fromJson(Map<String, dynamic> json) =>
+      _$ProfileFromJson(json);
 }
 
 List<String> _categoriesFromJson(Object? json) {
   if (json is! List) return const [];
-  final List<String> names = [];
+  final List<String> ids = [];
   for (final entry in json) {
     if (entry is Map<String, dynamic>) {
-      final category = entry['category'];
-      if (category is Map<String, dynamic>) {
-        final name = category['name'] ?? category['slug'];
-        if (name is String && name.isNotEmpty) {
-          names.add(name);
-        }
+      final categoryId = entry['category_id'];
+      if (categoryId is int) {
+        ids.add(categoryId.toString());
+      } else if (categoryId is String && categoryId.isNotEmpty) {
+        ids.add(categoryId);
       }
     }
   }
-  return names;
+  return ids;
 }
