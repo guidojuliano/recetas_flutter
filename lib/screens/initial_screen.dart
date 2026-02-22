@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:recetas_flutter/l10n/app_localizations.dart';
@@ -12,9 +13,12 @@ class InitialScreen extends StatefulWidget {
   State<InitialScreen> createState() => _InitialScreenState();
 }
 
-class _InitialScreenState extends State<InitialScreen> {
+class _InitialScreenState extends State<InitialScreen>
+    with WidgetsBindingObserver {
   StreamSubscription<AuthState>? _authSub;
   bool _isLoggingIn = false;
+  bool _didNavigate = false;
+  Timer? _oauthWatchdog;
 
   static const String _googleLogoSvg =
       "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><path fill='#FFC107' d='M43.6 20.1H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.2 6.2 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.9z'/><path fill='#FF3D00' d='M6.3 14.7l6.6 4.8C14.7 15.6 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.2 6.2 29.3 4 24 4c-7.7 0-14.3 4.4-17.7 10.7z'/><path fill='#4CAF50' d='M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.4 35 26.9 36 24 36c-5.2 0-9.6-3.4-11.2-8.2l-6.6 5.1C9.5 39.6 16.2 44 24 44z'/><path fill='#1976D2' d='M43.6 20.1H42V20H24v8h11.3c-1 2.6-3 4.7-5.6 5.9l6.3 5.2C38.7 36.4 44 31 44 24c0-1.3-.1-2.7-.4-3.9z'/></svg>";
@@ -22,13 +26,15 @@ class _InitialScreenState extends State<InitialScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _redirectIfLogged();
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) async {
       final session = data.session;
       if (session != null && mounted) {
-        await _upsertProfile(session.user);
+        _clearLoginPendingState();
+        unawaited(_upsertProfile(session.user));
         _goToHome();
       }
     });
@@ -36,8 +42,21 @@ class _InitialScreenState extends State<InitialScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _oauthWatchdog?.cancel();
     _authSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !_isLoggingIn || !mounted) {
+      return;
+    }
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      _clearLoginPendingState();
+    }
   }
 
   Future<void> _redirectIfLogged() async {
@@ -45,6 +64,7 @@ class _InitialScreenState extends State<InitialScreen> {
     if (session != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
+          unawaited(_upsertProfile(session.user));
           _goToHome();
         }
       });
@@ -52,9 +72,30 @@ class _InitialScreenState extends State<InitialScreen> {
   }
 
   void _goToHome() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const RecipeBook()),
+    if (_didNavigate || !mounted) return;
+    _didNavigate = true;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 420),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, animation, __) => const RecipeBook(),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -109,7 +150,7 @@ class _InitialScreenState extends State<InitialScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: _loginWithGoogle,
+                    onPressed: _isLoggingIn ? null : _loginWithGoogle,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -162,24 +203,47 @@ class _InitialScreenState extends State<InitialScreen> {
     setState(() {
       _isLoggingIn = true;
     });
+    _oauthWatchdog?.cancel();
+    _oauthWatchdog = Timer(const Duration(seconds: 25), () {
+      if (!mounted) return;
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null && _isLoggingIn) {
+        _clearLoginPendingState();
+      }
+    });
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'io.supabase.flutter://login-callback',
-      );
+      if (kIsWeb) {
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          queryParams: {'prompt': 'select_account'},
+        );
+        if (mounted) {
+          _clearLoginPendingState();
+        }
+      } else {
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'io.supabase.flutter://login-callback',
+          queryParams: {'prompt': 'select_account'},
+        );
+      }
     } catch (e) {
       debugPrint('OAuth error: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(l10n.oauthError('$e'))));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoggingIn = false;
-        });
+        _clearLoginPendingState();
       }
     }
+  }
+
+  void _clearLoginPendingState() {
+    _oauthWatchdog?.cancel();
+    _oauthWatchdog = null;
+    if (!mounted) return;
+    setState(() {
+      _isLoggingIn = false;
+    });
   }
 }

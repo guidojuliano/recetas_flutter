@@ -4,7 +4,9 @@ import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
+import 'package:recetas_flutter/screens/public_profile_screen.dart';
 import 'package:recetas_flutter/services/category_catalog_service.dart';
+import 'package:recetas_flutter/widgets/animated_favorite_button.dart';
 import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -189,7 +191,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
               color: Colors.white,
             ),
             actions: [
-              IconButton(
+              AnimatedFavoriteButton(
+                isFavorite: isFavorite,
+                inactiveColor: Colors.white,
+                tooltip: isFavorite
+                    ? l10n.removeFromFavorites
+                    : l10n.addToFavorites,
                 onPressed: () {
                   final session = Supabase.instance.client.auth.currentSession;
                   if (session == null) {
@@ -198,11 +205,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   }
                   favoritesProvider.toggleFavorite(_recipe.id);
                 },
-                icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
-                color: isFavorite ? Colors.redAccent : Colors.white,
-                tooltip: isFavorite
-                    ? l10n.removeFromFavorites
-                    : l10n.addToFavorites,
               ),
               if (canManage)
                 IconButton(
@@ -249,12 +251,15 @@ class _RecipeDetailState extends State<RecipeDetail> {
   Widget _buildHeroImage() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: RecipeImage(
-          url: _recipe.imageUrl,
-          fallbackSvg: _fallbackSvg,
-          fit: BoxFit.cover,
+      child: Hero(
+        tag: 'recipe-image-${_recipe.id}',
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: RecipeImage(
+            url: _recipe.imageUrl,
+            fallbackSvg: _fallbackSvg,
+            fit: BoxFit.cover,
+          ),
         ),
       ),
     );
@@ -274,9 +279,23 @@ class _RecipeDetailState extends State<RecipeDetail> {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
-        Text(
-          l10n.byAuthor(_recipe.owner.displayName),
-          style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PublicProfileScreen(profile: _recipe.owner),
+              ),
+            );
+          },
+          child: Text(
+            l10n.byAuthor(_recipe.owner.displayName),
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[700],
+              decoration: TextDecoration.underline,
+            ),
+          ),
         ),
         const SizedBox(height: 6),
         Wrap(

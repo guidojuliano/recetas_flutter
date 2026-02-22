@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/models/recipes_model.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
+import 'package:recetas_flutter/screens/public_profile_screen.dart';
 import 'package:recetas_flutter/screens/recipe_detail.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
 
@@ -125,9 +126,12 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                   width: 100,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12.0),
-                    child: RecipeImage(
-                      url: recipe.imageUrl,
-                      fallbackSvg: _fallbackSvg,
+                    child: Hero(
+                      tag: 'recipe-image-${recipe.id}',
+                      child: RecipeImage(
+                        url: recipe.imageUrl,
+                        fallbackSvg: _fallbackSvg,
+                      ),
                     ),
                   ),
                 ),
@@ -149,13 +153,25 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                       const SizedBox(height: 4),
                       Container(height: 1, width: 75, color: Colors.deepPurple),
                       const SizedBox(height: 4),
-                      Text(
-                        l10n.byAuthor(recipe.owner.displayName),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade700,
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  PublicProfileScreen(profile: recipe.owner),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          l10n.byAuthor(recipe.owner.displayName),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
                       ),
                     ],

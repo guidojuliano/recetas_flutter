@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "86125236762",
+    "project_id": "cookly-7c81b",
+    "storage_bucket": "cookly-7c81b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:86125236762:android:770dbc23caf814a39277a3",
+        "android_client_info": {
+          "package_name": "com.example.recetas_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAA6kubuEAr11i4UpqCz3tNo3M33TcXc40"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -45,10 +45,7 @@ class RecipeImage extends StatelessWidget {
         child: FractionallySizedBox(
           widthFactor: 0.45,
           heightFactor: 0.45,
-          child: Image.asset(
-            fallbackAssetPath,
-            fit: BoxFit.contain,
-          ),
+          child: Image.asset(fallbackAssetPath, fit: BoxFit.contain),
         ),
       ),
     );

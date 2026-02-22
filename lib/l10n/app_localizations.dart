@@ -102,6 +102,12 @@ class AppLocalizations {
       'signupPending': 'Registro pendiente',
       'couldNotLoadCategories': 'No se pudieron cargar categorías',
       'genericError': 'Error: {error}',
+      'followUser': 'Seguir',
+      'followingUser': 'Siguiendo',
+      'usersSection': 'Usuarios',
+      'recipesSection': 'Recetas',
+      'usersSearchHint': 'Buscar recetas y usuarios',
+      'userRecipesCount': '{count} recetas',
     },
     'en': {
       'profile': 'Profile',
@@ -168,6 +174,12 @@ class AppLocalizations {
       'signupPending': 'Signup pending',
       'couldNotLoadCategories': 'Could not load categories',
       'genericError': 'Error: {error}',
+      'followUser': 'Follow',
+      'followingUser': 'Following',
+      'usersSection': 'Users',
+      'recipesSection': 'Recipes',
+      'usersSearchHint': 'Search recipes and users',
+      'userRecipesCount': '{count} recipes',
     },
     'pt': {
       'profile': 'Perfil',
@@ -234,6 +246,12 @@ class AppLocalizations {
       'signupPending': 'Cadastro pendente',
       'couldNotLoadCategories': 'Não foi possível carregar categorias',
       'genericError': 'Erro: {error}',
+      'followUser': 'Seguir',
+      'followingUser': 'Seguindo',
+      'usersSection': 'Usuários',
+      'recipesSection': 'Receitas',
+      'usersSearchHint': 'Buscar receitas e usuários',
+      'userRecipesCount': '{count} receitas',
     },
   };
 
@@ -288,6 +306,11 @@ class AppLocalizations {
   String get join => _t('join');
   String get signupPending => _t('signupPending');
   String get couldNotLoadCategories => _t('couldNotLoadCategories');
+  String get followUser => _t('followUser');
+  String get followingUser => _t('followingUser');
+  String get usersSection => _t('usersSection');
+  String get recipesSection => _t('recipesSection');
+  String get usersSearchHint => _t('usersSearchHint');
 
   String oauthError(String error) =>
       _t('oauthError').replaceAll('{error}', error);
@@ -312,6 +335,8 @@ class AppLocalizations {
       _t('noSearchResults').replaceAll('{query}', query);
   String genericError(String error) =>
       _t('genericError').replaceAll('{error}', error);
+  String userRecipesCount(int count) =>
+      _t('userRecipesCount').replaceAll('{count}', '$count');
 }
 
 class AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:recetas_flutter/l10n/app_localizations.dart';
@@ -10,6 +11,7 @@ const String _googleLogoSvg =
 
 void showGuestLoginSheet(BuildContext context) {
   StreamSubscription<AuthState>? sub;
+  var isSheetOpen = true;
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF3C2E8D),
@@ -61,12 +63,27 @@ void showGuestLoginSheet(BuildContext context) {
                             isLoggingIn = true;
                           });
                           try {
-                            await Supabase.instance.client.auth.signInWithOAuth(
-                              OAuthProvider.google,
-                              redirectTo:
-                                  'io.supabase.flutter://login-callback',
-                            );
-                          } finally {
+                            if (kIsWeb) {
+                              await Supabase.instance.client.auth
+                                  .signInWithOAuth(
+                                    OAuthProvider.google,
+                                    queryParams: {'prompt': 'select_account'},
+                                  );
+                              if (!isSheetOpen) return;
+                              setState(() {
+                                isLoggingIn = false;
+                              });
+                            } else {
+                              await Supabase.instance.client.auth
+                                  .signInWithOAuth(
+                                    OAuthProvider.google,
+                                    redirectTo:
+                                        'io.supabase.flutter://login-callback',
+                                    queryParams: {'prompt': 'select_account'},
+                                  );
+                            }
+                          } catch (_) {
+                            if (!isSheetOpen) return;
                             setState(() {
                               isLoggingIn = false;
                             });
@@ -108,6 +125,7 @@ void showGuestLoginSheet(BuildContext context) {
       );
     },
   ).whenComplete(() {
+    isSheetOpen = false;
     sub?.cancel();
   });
 }

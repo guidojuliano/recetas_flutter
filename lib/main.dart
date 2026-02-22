@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:recetas_flutter/firebase_options.dart';
 import 'package:recetas_flutter/config/env_config.dart';
 import 'package:recetas_flutter/l10n/app_localizations.dart';
 import 'package:recetas_flutter/providers/favorites_provider.dart';
+import 'package:recetas_flutter/providers/following_provider.dart';
 import 'package:recetas_flutter/providers/recipes_providers.dart';
 import 'package:recetas_flutter/screens/categories_screen.dart';
 import 'package:recetas_flutter/screens/favorites_screen.dart';
@@ -12,8 +15,11 @@ import 'package:recetas_flutter/screens/home_screen.dart';
 import 'package:recetas_flutter/screens/initial_screen.dart';
 import 'package:recetas_flutter/screens/my_recipes_screen.dart';
 import 'package:recetas_flutter/screens/search_screen.dart';
+import 'package:recetas_flutter/services/push_notifications_service.dart';
 import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,13 +31,28 @@ Future<void> main() async {
     throw Exception('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
   }
 
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   runApp(const MainApp());
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
+
+  @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushNotificationsService.instance.initialize(appNavigatorKey);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +60,11 @@ class MainApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => RecipesProvider()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => FollowingProvider()),
       ],
       child: MaterialApp(
         title: 'Cookly',
+        navigatorKey: appNavigatorKey,
         debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -133,6 +156,8 @@ class RecipeBook extends StatelessWidget {
                   ),
                 ),
                 onPressed: () async {
+                  await PushNotificationsService.instance
+                      .unregisterCurrentToken();
                   await Supabase.instance.client.auth.signOut();
                   if (context.mounted) {
                     Navigator.pushAndRemoveUntil(
