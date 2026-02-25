@@ -8,6 +8,7 @@ import 'package:recetas_flutter/screens/public_profile_screen.dart';
 import 'package:recetas_flutter/services/category_catalog_service.dart';
 import 'package:recetas_flutter/widgets/animated_favorite_button.dart';
 import 'package:recetas_flutter/widgets/guest_login_sheet.dart';
+import 'package:recetas_flutter/widgets/image_search_picker_sheet.dart';
 import 'package:recetas_flutter/widgets/recipe_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -144,6 +145,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
     final updated = await showModalBottomSheet<Recipe>(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -349,6 +352,11 @@ class _EditRecipeSheet extends StatefulWidget {
 }
 
 class _EditRecipeSheetState extends State<_EditRecipeSheet> {
+  static const Color _sheetSurface = Color(0xFFF3EFFA);
+  static const Color _cardSurface = Colors.white;
+  static const Color _fieldSurface = Color(0xFFF8F6FC);
+  static const Color _borderSoft = Color(0xFFE3DCF3);
+
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _title;
   late final TextEditingController _imageUrl;
@@ -392,6 +400,25 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
     }
     _ingredientsInput.clear();
     setState(() {});
+  }
+
+  Future<void> _pickImage() async {
+    final selectedUrl = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFF3EFFA),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.78,
+        child: ImageSearchPickerSheet(initialQuery: _title.text),
+      ),
+    );
+    if (selectedUrl == null || selectedUrl.isEmpty) return;
+    setState(() {
+      _imageUrl.text = selectedUrl;
+    });
   }
 
   Future<void> _submit() async {
@@ -445,115 +472,360 @@ class _EditRecipeSheetState extends State<_EditRecipeSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                l10n.editRecipe,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
+    return Container(
+      color: _sheetSurface,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withAlpha(70),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _title,
-                decoration: InputDecoration(
-                  labelText: l10n.title,
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.editRecipe,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.deepPurple,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.cancel,
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.deepPurple,
+                      ),
+                    ),
+                  ],
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return l10n.titleRequired;
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _imageUrl,
-                decoration: InputDecoration(
-                  labelText: l10n.imageUrl,
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.checkRequiredFields,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.deepPurple.withAlpha(165),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.ingredients,
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _ingredients
-                    .map(
-                      (item) => Chip(
-                        label: Text(item),
-                        onDeleted: () {
-                          setState(() {
-                            _ingredients.remove(item);
-                          });
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _cardSurface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: _borderSoft),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 18,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _title,
+                        decoration: _inputDecoration(label: l10n.title),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return l10n.titleRequired;
+                          }
+                          return null;
                         },
                       ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _ingredientsInput,
-                decoration: InputDecoration(
-                  hintText: l10n.addIngredientAndPressEnter,
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    onPressed: () =>
-                        _addIngredientsFromText(_ingredientsInput.text),
-                    icon: const Icon(Icons.add),
+                      const SizedBox(height: 12),
+                      _buildImagePickerField(l10n),
+                    ],
                   ),
                 ),
-                onSubmitted: _addIngredientsFromText,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _instructions,
-                minLines: 4,
-                maxLines: 6,
-                decoration: InputDecoration(
-                  labelText: l10n.instructions,
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return l10n.instructionsRequired;
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _cardSurface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: _borderSoft),
                   ),
-                  child: Text(
-                    _saving ? l10n.saving : l10n.saveChanges,
-                    style: const TextStyle(color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle(
+                        title: l10n.ingredients,
+                        icon: Icons.restaurant_menu_rounded,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _ingredients
+                            .map(
+                              (item) => Chip(
+                                label: Text(item),
+                                backgroundColor: Colors.deepPurple.withAlpha(
+                                  22,
+                                ),
+                                labelStyle: const TextStyle(
+                                  color: Color(0xFF4D2FA1),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                side: BorderSide(
+                                  color: Colors.deepPurple.withAlpha(30),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                onDeleted: () {
+                                  setState(() {
+                                    _ingredients.remove(item);
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _ingredientsInput,
+                        decoration: _inputDecoration(
+                          label: l10n.addIngredientAndPressEnter,
+                          dense: true,
+                          suffixIcon: Container(
+                            margin: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurple,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: IconButton(
+                              onPressed: () =>
+                                  _addIngredientsFromText(_ingredientsInput.text),
+                              icon: const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        onSubmitted: _addIngredientsFromText,
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _cardSurface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: _borderSoft),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle(
+                        title: l10n.instructions,
+                        icon: Icons.menu_book_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _instructions,
+                        minLines: 4,
+                        maxLines: 6,
+                        decoration: _inputDecoration(label: l10n.instructions),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return l10n.instructionsRequired;
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: const Color(0x4A673AB7),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      _saving ? l10n.saving : l10n.saveChanges,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionTitle({required String title, required IconData icon}) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.deepPurple),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.deepPurple,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String label,
+    Widget? suffixIcon,
+    bool dense = false,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(
+        color: Color(0xFF6A53A8),
+        fontWeight: FontWeight.w600,
+      ),
+      filled: true,
+      fillColor: _fieldSurface,
+      suffixIcon: suffixIcon,
+      isDense: dense,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _borderSoft, width: 1.0),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _borderSoft, width: 1.0),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.deepPurple, width: 1.5),
+      ),
+    );
+  }
+
+  Widget _buildImagePickerField(AppLocalizations l10n) {
+    final hasImage = _imageUrl.text.trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(title: l10n.imageUrl, icon: Icons.image_rounded),
+        const SizedBox(height: 8),
+        if (hasImage)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Image.network(
+                _imageUrl.text.trim(),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: _fieldSurface,
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'No se pudo cargar la imagen',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: _fieldSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _borderSoft),
+            ),
+            child: const Text(
+              'No elegiste imagen todavia',
+              style: TextStyle(color: Colors.black54),
+            ),
+          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _pickImage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Buscar imagen'),
+              ),
+            ),
+            if (hasImage) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _imageUrl.clear();
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.deepPurple,
+                  side: const BorderSide(color: _borderSoft),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: const Text('Quitar'),
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }

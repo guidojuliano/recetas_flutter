@@ -228,7 +228,6 @@ class _InitialScreenState extends State<InitialScreen>
         );
       }
     } catch (e) {
-      debugPrint('OAuth error: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -247,3 +246,4 @@ class _InitialScreenState extends State<InitialScreen>
     });
   }
 }
+

@@ -5,6 +5,16 @@
       "source": "madteacher/mad-agents-skills",
       "sourceType": "github",
       "computedHash": "0c62d299cfdb82a8a22eadcb9b58c998cb6ceb85368a342689143a0278e4c7bb"
+    },
+    "ui-ux-designer": {
+      "source": "lotosbin/claude-skills",
+      "sourceType": "github",
+      "computedHash": "dd0a1b69d9e3abbdc4ccc8ebdde663ab7e01df70f433b8695c06b9cd7d089df6"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "4cfe5e95a230616c17d92b44e3cd37bae543ce087a7756a446a62f77d7c58a37"
     }
   }
 }
